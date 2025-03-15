@@ -128,7 +128,12 @@ async def clear_data(message: types.Message):
     await message.answer("🗑 Все данные очищены!")
 
 async def main():
+    print("✅ Бот запущен и готов к работе!")
+
+    # Удаляем Webhook перед запуском (избегаем конфликта)
     await bot.delete_webhook(drop_pending_updates=True)
+
+    # Запускаем бота
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
