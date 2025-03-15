@@ -157,7 +157,18 @@ async def send_daily_report():
 # 📌 Автоматический отчёт в 9:00 утра
 scheduler = AsyncIOScheduler()
 scheduler.add_job(send_daily_report, "cron", hour=9, minute=0)
-scheduler.start()
+import asyncio
+
+async def start_scheduler():
+    scheduler.start()
+
+async def main():
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
+
+loop = asyncio.get_event_loop()
+loop.create_task(start_scheduler())  # Запускаем планировщик в фоне
+loop.run_until_complete(main())  # Запускаем бота
 
 # 📌 Добавляем `router` в `Dispatcher`
 dp.include_router(router)
