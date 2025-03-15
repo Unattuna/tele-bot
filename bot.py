@@ -4,7 +4,6 @@ import random
 import asyncio
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 TOKEN = "7753558502:AAFCnmIG38JOyTz6hfN7p5YTh-paoVEn8Wo"
 
@@ -127,31 +126,6 @@ async def clear_data(message: types.Message):
     cursor.execute("DELETE FROM transactions")
     conn.commit()
     await message.answer("🗑 Все данные очищены!")
-
-# 📌 Автоматический отчёт в 9:00 утра
-async def send_daily_report():
-    cursor.execute("SELECT SUM(amount) FROM transactions WHERE type='income'")
-    income = cursor.fetchone()[0] or 0
-
-    cursor.execute("SELECT SUM(amount) FROM transactions WHERE type='expense'")
-    expense = cursor.fetchone()[0] or 0
-
-    balance = income - expense
-
-    cursor.execute("SELECT category, SUM(amount) FROM transactions WHERE type='income' GROUP BY category")
-    income_details = cursor.fetchall()
-    income_text = "\n".join([f"💰 {cat.capitalize()}: {amt} сом" for cat, amt in income_details]) if income_details else "💰 Нет доходов"
-
-    cursor.execute("SELECT category, SUM(amount) FROM transactions WHERE type='expense' GROUP BY category")
-    expense_details = cursor.fetchall()
-    expense_text = "\n".join([f"💸 {cat.capitalize()}: {amt} сом" for cat, amt in expense_details]) if expense_details else "💸 Нет расходов"
-
-    report = (f"📅 Ежедневный отчёт\n\n"
-              f"Твой баланс: {balance} сом\n\n"
-              f"💰 Доход: {income} сом\n{income_text}\n\n"
-              f"💸 Расход: {expense} сом\n{expense_text}")
-
-    await bot.send_message(chat_id="ТВОЙ_CHAT_ID", text=report)
 
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
