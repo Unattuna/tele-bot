@@ -1,8 +1,7 @@
-import sqlite3
 import os
+import sqlite3
 import random
 import asyncio
-from datetime import datetime
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -129,7 +128,7 @@ async def clear_data(message: types.Message):
     conn.commit()
     await message.answer("🗑 Все данные очищены!")
 
-# 📌 Функция для ежедневного отчёта
+# 📌 Автоматический отчёт в 9:00 утра
 async def send_daily_report():
     cursor.execute("SELECT SUM(amount) FROM transactions WHERE type='income'")
     income = cursor.fetchone()[0] or 0
@@ -154,26 +153,6 @@ async def send_daily_report():
 
     await bot.send_message(chat_id="ТВОЙ_CHAT_ID", text=report)
 
-# 📌 Автоматический отчёт в 9:00 утра
-scheduler = AsyncIOScheduler()
-scheduler.add_job(send_daily_report, "cron", hour=9, minute=0)
-import asyncio
-
-async def start_scheduler():
-    scheduler.start()
-
-async def main():
-    await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
-
-loop = asyncio.get_event_loop()
-loop.create_task(start_scheduler())  # Запускаем планировщик в фоне
-loop.run_until_complete(main())  # Запускаем бота
-
-# 📌 Добавляем `router` в `Dispatcher`
-dp.include_router(router)
-
-# 📌 Запуск бота
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
