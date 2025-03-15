@@ -18,90 +18,141 @@ cursor.execute('''
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         type TEXT, 
         category TEXT DEFAULT 'без категории',
-        amount REAL
+        amount REAL,
+        date TEXT DEFAULT CURRENT_TIMESTAMP
     )
 ''')
 conn.commit()
 
-# 📌 Функция для обработки команд (убирает пробелы и делает текст в нижнем регистре)
+# 📌 Мотивационные сообщения
+MOTIVATION_QUOTES = [
+    "🚀 Маленькие шаги ведут к большим победам!",
+    "💰 Контроль финансов – первый шаг к богатству!",
+    "📊 Веди учёт сегодня, чтобы жить лучше завтра!",
+    "🎯 Успех – результат дисциплины и контроля!",
+    "🔥 Ты молодец, продолжай в том же духе!"
+]
+
+# 📌 Очистка текста от пробелов и приведение к нижнему регистру
 def clean_text(text):
     return text.strip().lower()
 
-# 📌 Команда "старт"
-@router.message()
+# 📌 Команда /start
+@router.message(Command("start"))
 async def start(message: types.Message):
-    if clean_text(message.text) in ["старт", "/start"]:
-        await message.answer("👋 Привет! Я помогу тебе следить за финансами.\n\n"
-                             "💰 **Доход:** Просто напиши **1000 зарплата**\n"
-                             "💸 **Расход:** Например, **500 такси**\n"
-                             "📊 **Баланс:** Напиши **баланс**\n"
-                             "🔄 **Сбросить данные:** **очистить**")
-        return
+    await message.answer("👋 Привет! Я помогу тебе следить за финансами.\n\n"
+                         "💰 Доход: 120000 зарплата доход\n"
+                         "💸 Расход: 300 такси расход\n"
+                         "📊 Баланс: баланс\n"
+                         "🔄 Очистка данных: очистить")
 
-    # 📌 Проверка баланса
-    if clean_text(message.text) in ["баланс", "/баланс"]:
-        cursor.execute("SELECT SUM(amount) FROM transactions WHERE type='income'")
-        income = cursor.fetchone()[0] or 0
-
-        cursor.execute("SELECT SUM(amount) FROM transactions WHERE type='expense'")
-        expense = cursor.fetchone()[0] or 0
-
-        balance = income - expense
-
-        # 📌 Баланс по категориям доходов
-        cursor.execute("SELECT category, SUM(amount) FROM transactions WHERE type='income' GROUP BY category")
-        income_details = cursor.fetchall()
-        income_text = "\n".join([f"💰 {cat.capitalize()}: {amt} сом" for cat, amt in income_details]) if income_details else "💰 Нет доходов"
-
-        # 📌 Баланс по категориям расходов
-        cursor.execute("SELECT category, SUM(amount) FROM transactions WHERE type='expense' GROUP BY category")
-        expense_details = cursor.fetchall()
-        expense_text = "\n".join([f"💸 {cat.capitalize()}: {amt} сом" for cat, amt in expense_details]) if expense_details else "💸 Нет расходов"
-
-        await message.answer(f"📊 **Твой баланс:** {balance} сом\n\n"
-                             f"💰 **Доход:** {income} сом\n{income_text}\n\n"
-                             f"💸 **Расход:** {expense} сом\n{expense_text}")
-        return
-
-    # 📌 Очистка всех данных
-    if clean_text(message.text) in ["очистить", "/очистить"]:
-        cursor.execute("DELETE FROM transactions")
-        conn.commit()
-        await message.answer("🗑️ Все данные очищены!")
-        return
-
-    # 📌 Функция проверки суммы
-    def parse_amount(text):
-        try:
-            return float(text.replace(",", "."))  # Поддержка чисел с запятой
-        except ValueError:
-            return None
-
-    # 📌 Обработчик доходов и расходов (например, "500 доставка" или "1000 зарплата")
+# 📌 Функция проверки суммы
+def parse_amount(text):
     try:
-        parts = message.text.strip().split(maxsplit=1)  # Разделяем только на 2 части: сумма + категория
+        return float(text.replace(",", "."))  # Поддержка чисел с запятой
+    except ValueError:
+        return None
 
-        if len(parts) < 2:
-            await message.answer("❌ Ошибка! Напиши сумму и категорию, например: **500 такси** или **1000 зарплата**")
+# 📌 Добавление доходов и расходов
+@router.message()
+async def add_transaction(message: types.Message):
+    try:
+        text = clean_text(message.text)
+        parts = text.split(maxsplit=2)  # Разбиваем на 3 части: сумма, категория, тип (доход/расход)
+
+        if len(parts) < 3:
+            await message.answer("❌ Ошибка! Напиши сумму, категорию и доход/расход.\n\n"
+                                 "Пример: 300 такси расход или 120000 зарплата доход")
             return
 
         amount = parse_amount(parts[0])
-        category = parts[1].strip().lower()
+        category = parts[1].strip()
+        transaction_type = parts[2].strip()
 
         if amount is None:
-            await message.answer("❌ Ошибка! Введи правильную сумму, например: **500 такси** или **1000 зарплата**")
+            await message.answer("❌ Ошибка! Введи корректную сумму, например: 300 такси расход")
             return
 
-        transaction_type = "income" if amount > 0 else "expense"
+        if transaction_type not in ["доход", "расход"]:
+            await message.answer("❌ Ошибка! Укажи доход или расход в конце.\n\n"
+                                 "Пример: 300 такси расход или 120000 зарплата доход")
+            return
+
+        # 📌 Определяем тип транзакции
+        transaction_type = "income" if transaction_type == "доход" else "expense"
 
         cursor.execute("INSERT INTO transactions (type, category, amount) VALUES (?, ?, ?)", 
                        (transaction_type, category, abs(amount)))
         conn.commit()
 
         emoji = "✅" if transaction_type == "income" else "❌"
-        await message.answer(f"{emoji} **{abs(amount)} сом** ({category}) записано!")
+        motivation = random.choice(MOTIVATION_QUOTES)
+
+        await message.answer(f"{emoji} {abs(amount)} сом ({category}) записано!\n\n{motivation}")
     except Exception as e:
         await message.answer(f"❌ Ошибка! Проверь ввод.\n\nОшибка: {e}")
+
+# 📌 Проверка баланса (разделение по категориям)
+@router.message(Command("баланс"))
+async def get_balance(message: types.Message):
+    cursor.execute("SELECT SUM(amount) FROM transactions WHERE type='income'")
+    income = cursor.fetchone()[0] or 0
+
+    cursor.execute("SELECT SUM(amount) FROM transactions WHERE type='expense'")
+    expense = cursor.fetchone()[0] or 0
+
+    balance = income - expense
+
+    # 📌 Баланс по категориям доходов
+    cursor.execute("SELECT category, SUM(amount) FROM transactions WHERE type='income' GROUP BY category")
+    income_details = cursor.fetchall()
+    income_text = "\n".join([f"💰 {cat.capitalize()}: {amt} сом" for cat, amt in income_details]) if income_details else "💰 Нет доходов"
+
+    # 📌 Баланс по категориям расходов
+    cursor.execute("SELECT category, SUM(amount) FROM transactions WHERE type='expense' GROUP BY category")
+    expense_details = cursor.fetchall()
+    expense_text = "\n".join([f"💸 {cat.capitalize()}: {amt} сом" for cat, amt in expense_details]) if expense_details else "💸 Нет расходов"
+
+    await message.answer(f"Твой баланс: {balance} сом\n\n"
+                         f"💰 Доход: {income} сом\n{income_text}\n\n"
+                         f"💸 Расход: {expense} сом\n{expense_text}")
+
+# 📌 Очистка всех данных
+@router.message(Command("очистить"))
+async def clear_data(message: types.Message):
+    cursor.execute("DELETE FROM transactions")
+    conn.commit()
+    await message.answer("🗑 Все данные очищены!")
+
+# 📌 Функция для ежедневного отчёта
+async def send_daily_report():
+    cursor.execute("SELECT SUM(amount) FROM transactions WHERE type='income'")
+    income = cursor.fetchone()[0] or 0
+
+    cursor.execute("SELECT SUM(amount) FROM transactions WHERE type='expense'")
+    expense = cursor.fetchone()[0] or 0
+
+    balance = income - expense
+
+    cursor.execute("SELECT category, SUM(amount) FROM transactions WHERE type='income' GROUP BY category")
+    income_details = cursor.fetchall()
+    income_text = "\n".join([f"💰 {cat.capitalize()}: {amt} сом" for cat, amt in income_details]) if income_details else "💰 Нет доходов"
+
+    cursor.execute("SELECT category, SUM(amount) FROM transactions WHERE type='expense' GROUP BY category")
+    expense_details = cursor.fetchall()
+    expense_text = "\n".join([f"💸 {cat.capitalize()}: {amt} сом" for cat, amt in expense_details]) if expense_details else "💸 Нет расходов"
+
+    report = (f"📅 Ежедневный отчёт\n\n"
+              f"Твой баланс: {balance} сом\n\n"
+              f"💰 Доход: {income} сом\n{income_text}\n\n"
+              f"💸 Расход: {expense} сом\n{expense_text}")
+
+    await bot.send_message(chat_id="ТВОЙ_CHAT_ID", text=report)
+
+# 📌 Автоматический отчёт в 9:00 утра
+scheduler = AsyncIOScheduler()
+scheduler.add_job(send_daily_report, "cron", hour=9, minute=0)
+scheduler.start()
 
 # 📌 Добавляем `router` в `Dispatcher`
 dp.include_router(router)
