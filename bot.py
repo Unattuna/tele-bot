@@ -1,6 +1,11 @@
 import sqlite3
-from aiogram import Bot, Dispatcher, types, Router, F
+import os
+import random
 import asyncio
+from datetime import datetime
+from aiogram import Bot, Dispatcher, types, Router
+from aiogram.filters import Command
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 TOKEN = "7753558502:AAFCnmIG38JOyTz6hfN7p5YTh-paoVEn8Wo"
 
